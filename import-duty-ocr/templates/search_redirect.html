@@ -1,0 +1,7 @@
+<form id="autoSearch" method="POST" action="/search">
+    <input type="hidden" name="invoice_no" value="{{ invoice_no }}">
+    <input type="hidden" name="view_mode" value="full">
+</form>
+<script>
+    document.getElementById("autoSearch").submit();
+</script>

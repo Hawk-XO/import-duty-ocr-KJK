@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inventory Input</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        .fixed-top-right-start {
+            position: fixed;
+            top: 10px;
+            right: 1px;
+            z-index: 1050;
+            font-size: 1.8rem;
+            padding: 10px 20px;
+            border-radius: 0 0 0 6px;
+        }
+        label {
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body class="container py-4 pb-5">
+    <div class="text-end mb-4">
+        <a href="/start" class="btn btn-outline-secondary" style="font-size: 1.8rem; padding: 12px 28px;">
+            HOME
+        </a>
+    </div>
+
+    <h3 class="mb-3">Inventory Input</h3>
+    <form method="POST">
+        <!-- Common Invoice Fields -->
+        <div class="card mb-4">
+            <div class="card-header fw-bold">Invoice & Import Details</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% set fields = [
+                        'Invoice_no', 'Invoice_date', 'PARTY_NAME', 'GRN_no', 'Material_Recieved_Date',
+                        'Currency_Exchange_Rate', 'BOE_no', 'BOE_date',
+                        'AWB_no', 'AWB_date', 'BOE_Misc',
+                        'Freight_Charges', 'Freight_Exchange_Rate', 'Grade'
+                    ] %}
+                    {% for field in fields %}
+                    <div class="col-md-4">
+                        <label class="form-label">{{ field.replace('_', ' ') }}</label>
+                        <input class="form-control form-control-sm" name="{{ field }}"
+                            value="{{ metadata.get(field,'') }}"
+                            {% if "date" in field.lower() %}type="date"{% else %}type="text"{% endif %}
+                            {% if field != 'Grade' %}required{% endif %}>
+                    </div>
+                    {% endfor %}
+
+                    <div class="col-md-4">
+                        <label class="form-label">Invoice Currency</label>
+                        <select class="form-select form-select-sm" name="Invoice_currency_select" onchange="toggleCustomCurrency(this)" required>
+                            {% set currency = metadata.get('Invoice_currency', '') %}
+                            <option value="" disabled {% if not currency %}selected{% endif %}>-- Select --</option>
+                            <option value="USD" {% if currency == 'USD' %}selected{% endif %}>USD</option>
+                            <option value="YEN" {% if currency == 'YEN' %}selected{% endif %}>YEN</option>
+                            <option value="EURO" {% if currency == 'EURO' %}selected{% endif %}>EURO</option>
+                            <option value="SGD" {% if currency == 'SGD' %}selected{% endif %}>SGD</option>
+                            <option value="Custom" {% if currency not in ['USD', 'YEN', 'EURO', 'SGD'] and currency %}selected{% endif %}>Custom</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm mt-1" id="custom_currency" name="Invoice_currency_custom"
+                            placeholder="Enter custom currency"
+                            {% if currency in ['USD', 'YEN', 'EURO', 'SGD'] or not currency %}style="display:none"{% endif %}
+                            value="{% if currency not in ['USD', 'YEN', 'EURO', 'SGD'] %}{{ currency }}{% endif %}">
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">BOE Insurance %</label>
+                        <input class="form-control form-control-sm" type="number" step="0.001"
+                            name="BOE_insurance_percentage"
+                            value="{{ metadata.get('BOE_insurance_percentage', '') }}" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Use MEIS License?</label>
+                        <select class="form-select form-select-sm" id="meis_license_use" name="meis_license_use" onchange="toggleMeisField(this.value)" required>
+                            <option value="" selected>-- Select --</option>
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4" id="meis_license_field" style="display:none;">
+                        <label class="form-label">MEIS License #</label>
+                        <input name="MEIS_License" class="form-control form-control-sm">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Item-wise Input Table -->
+        <h5 class="mt-3">Item-wise Details</h5>
+        <div class="table-responsive mb-3">
+            <table class="table table-bordered table-sm align-middle text-center">
+                <thead class="table-light">
+                    <tr>
+                        <th>S. No</th>
+                        <th>Artno</th>
+                        <th>Description</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>
+                            Unit<br>
+                            <input type="checkbox" id="unit-lock-toggle" onclick="toggleUnitLock(this)">
+                            <label for="unit-lock-toggle" style="font-size: 0.75rem;">Use same</label>
+                        </th>
+
+                        <th>Rate</th>
+                        <th>Duty %</th>
+                        <th>SW %</th>
+                        <th>IGST %</th>
+                        <th>GWO</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="item-table-body">
+                    {% for item in item_rows %}
+                    <tr>
+                        <td class="sno align-middle">{{ loop.index }}</td>
+                        <td><input name="Artno" class="form-control form-control-sm" value="{{ item.Artno }}"></td>
+                        <td><input name="Specification" class="form-control form-control-sm" value="{{ item.Specification }}" required></td>
+                        <td>
+                            <select name="Type_of_Product" class="form-select form-select-sm type-select" onchange="toggleCustomInput(this)" required>
+                                {% set options = ['Raw material', 'Consumable', 'Repair and Maintenance', 'Fixed Asset', 'Printing and Stationary', 'Software', 'Custom'] %}
+                                {% for option in options %}
+                                <option value="{{ option }}" {% if item.Type_of_Product == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                            <input name="Type_of_Product_custom" class="form-control form-control-sm mt-1 {% if item.Type_of_Product != 'Custom' %}d-none{% endif %}" placeholder="Custom type" value="{{ item.Type_of_Product_custom or '' }}">
+                        </td>
+                        <td><input name="Quantity" class="form-control form-control-sm" type="number" step="0.01" value="{{ item.Quantity }}" required></td>
+                        <td><input name="Qty_type" class="form-control form-control-sm unit-field" value="{{ item.Qty_type }}" required></td>
+                        <td><input name="Rate_in_Euro" class="form-control form-control-sm" type="number" step="0.01" value="{{ item.Rate_in_Euro }}" required></td>
+                        <td><input name="Duty_percentage_item" class="form-control form-control-sm" type="number" step="0.01" value="{{ item.Duty_percentage_item or 10 }}"></td>
+                        <td><input name="SW_srchrg_percent" class="form-control form-control-sm" type="number" step="0.01" value="{{ item.SW_srchrg_percent or 10 }}"></td>
+                        <td><input name="IGST_percentage" class="form-control form-control-sm" type="number" step="0.01" value="{{ item.IGST_percentage or 18 }}"></td>
+                        <td><input name="GWO" class="form-control form-control-sm" value="{{ item.GWO }}"></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); reindexSerialNumbers()">🗑</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between mb-3">
+            <button type="button" onclick="addRow()" class="btn btn-sm btn-outline-secondary">+ Add Item</button>
+            <button type="submit" class="btn btn-sm btn-primary">Submit</button>
+        </div>
+    </form>
+
+<script>
+function addRow() {
+    const tableBody = document.getElementById('item-table-body');
+    const unitControl = document.getElementById('unit-lock-toggle');
+    const firstUnitVal = document.querySelector('[name="Qty_type"]')?.value || "";
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td class="sno align-middle"></td>
+        <td><input name="Artno" class="form-control form-control-sm" required></td>
+        <td><input name="Specification" class="form-control form-control-sm" required></td>
+        <td>
+            <select name="Type_of_Product" class="form-select form-select-sm type-select" onchange="toggleCustomInput(this)" required>
+                <option value="" disabled selected>Type</option>
+                <option value="Raw material">Raw material</option>
+                <option value="Consumable">Consumable</option>
+                <option value="Repair and Maintenance">Repair and Maintenance</option>
+                <option value="Fixed Asset">Fixed Asset</option>
+                <option value="Printing and Stationary">Printing and Stationary</option>
+                <option value="Software">Software</option>
+                <option value="Custom">Custom</option>
+            </select>
+            <input name="Type_of_Product_custom" class="form-control form-control-sm mt-1 d-none" placeholder="Custom type">
+        </td>
+        <td><input name="Quantity" class="form-control form-control-sm" type="number" step="0.01" required></td>
+        <td><input name="Qty_type" class="form-control form-control-sm" ${unitControl.checked ? `value="${firstUnitVal}" readonly` : ''} required></td>
+        <td><input name="Rate_in_Euro" class="form-control form-control-sm" type="number" step="0.01" required></td>
+        <td><input name="Duty_percentage_item" class="form-control form-control-sm" type="number" step="0.01" value="10"></td>
+        <td><input name="SW_srchrg_percent" class="form-control form-control-sm" type="number" step="0.01" value="10"></td>
+        <td><input name="IGST_percentage" class="form-control form-control-sm" type="number" step="0.01" value="18"></td>
+        <td><input name="GWO" class="form-control form-control-sm"></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">🗑</button></td>
+    `;
+    tableBody.appendChild(row);
+    reindexSerialNumbers();
+    
+}
+
+function toggleMeisField(v){
+    const el = document.getElementById('meis_license_field');
+    const inp = document.querySelector('[name=MEIS_License]');
+    if(v === 'Yes'){ el.style.display = 'block'; inp.required = true; }
+    else{ el.style.display = 'none'; inp.required = false; inp.value = ''; }
+}
+
+function toggleCustomInput(selectEl) {
+    const customInput = selectEl.nextElementSibling;
+    if (selectEl.value === 'Custom') {
+        customInput.classList.remove('d-none');
+        customInput.required = true;
+    } else {
+        customInput.classList.add('d-none');
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+
+function toggleCustomCurrency(select) {
+    const customInput = document.getElementById('custom_currency');
+    if (select.value === 'Custom') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+
+function toggleUnitLock(checkbox) {
+    const unitInputs = document.querySelectorAll('[name="Qty_type"]');
+    const firstValue = unitInputs[0]?.value || "";
+
+    for (let i = 1; i < unitInputs.length; i++) {
+        const input = unitInputs[i];
+        if (checkbox.checked) {
+            input.value = firstValue;
+            input.setAttribute('readonly', true);
+        } else {
+            input.removeAttribute('readonly');
+            input.value = "";
+        }
+    }
+
+    if (checkbox.checked) {
+        showAlert("Units autofilled with first row's unit", 2000);
+    }
+}
+
+function showAlert(message, duration = 2000) {
+    const alertDiv = document.createElement("div");
+    alertDiv.className = "alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3 shadow";
+    alertDiv.style.zIndex = "1055";
+    alertDiv.style.width = "fit-content";
+    alertDiv.innerText = message;
+
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), duration);
+}
+function reindexSerialNumbers() {
+    const rows = document.querySelectorAll('#item-table-body tr');
+    rows.forEach((row, index) => {
+        const snoCell = row.querySelector('.sno');
+        if (snoCell) {
+            snoCell.textContent = index + 1;
+        }
+    });
+}
+
+</script>
+
+
+</body>
+</html>

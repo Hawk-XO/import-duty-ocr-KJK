@@ -1,0 +1,209 @@
+<!-- templates/edit.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Invoice</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="container py-4">
+    <h3 class="mb-3">Edit Invoice - {{ invoice_no }}</h3>
+    <form method="POST" action="{{ url_for('update_invoice', invoice_no=invoice_no) }}">
+        <input type="hidden" name="Invoice_no" value="{{ invoice_no }}">
+
+        <!-- Common Invoice Fields -->
+        <div class="row row-cols-1 row-cols-md-2 g-3">
+            {% set fields = ['Invoice_no','Invoice_date','PARTY_NAME','GRN_no','Material_Recieved_Date',
+            'Currency_Exchange_Rate','BOE_no','BOE_date','AWB_no','AWB_date',
+            'BOE_Misc','Freight_Charges','Freight_Exchange_Rate','Grade'] %}
+            {% for field in fields %}
+            <div class="col-md-4">
+                <label class="form-label">{{ field.replace('_',' ') }}</label>
+                <input class="form-control form-control-sm" name="{{ field }}"
+                    value="{{ metadata.get(field, '') }}"
+                    {% if "date" in field.lower() %}type="date"{% else %}type="text"{% endif %}
+                    {% if field != 'Grade' %}required{% endif %}>
+            </div>
+            {% endfor %}
+
+            <!-- Invoice Currency with Dropdown -->
+<!-- Invoice Currency with Dropdown (Fixed) -->
+            <div class="col-md-4">
+                <label class="form-label">Invoice Currency</label>
+                {% set currency = metadata.get('Invoice_currency', '') %}
+                <select class="form-select form-select-sm" name="Invoice_currency" onchange="toggleCustomCurrencyEdit(this)" required>
+                    <option value="" disabled {% if not currency %}selected{% endif %}>-- Select --</option>
+                    {% for option in ['USD', 'YEN', 'EURO', 'SGD', 'Custom'] %}
+                    <option value="{{ option }}"
+                        {% if currency == option %}selected{% endif %}
+                        {% if option == 'Custom' and currency not in ['USD', 'YEN', 'EURO', 'SGD'] and currency %}selected{% endif %}>
+                        {{ option }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="text" class="form-control form-control-sm mt-1"
+                    name="Invoice_currency_custom" id="custom_currency_edit"
+                    placeholder="Enter custom currency"
+                    {% if currency in ['USD', 'YEN', 'EURO', 'SGD'] or not currency %}style="display:none"{% else %}style="display:block"{% endif %}
+                    value="{% if currency not in ['USD', 'YEN', 'EURO', 'SGD'] %}{{ currency }}{% endif %}">
+            </div>
+
+
+            <!-- BOE Insurance % -->
+            <div class="col-md-4">
+                <label class="form-label">BOE Insurance %</label>
+                <input class="form-control form-control-sm" type="number" step="0.001"
+                    name="BOE_insurance_percentage"
+                    value="{{ metadata.get('BOE_insurance_percentage', '') }}" required>
+            </div>
+
+            <!-- MEIS License -->
+            <div class="col-md-4">
+                <label class="form-label">Use MEIS License?</label>
+                <select class="form-select form-select-sm" name="meis_license_use" id="meis_license_use" onchange="toggleMeisField(this.value)" required>
+                    <option value="">-- Select --</option>
+                    <option value="No" {% if common_data['MEIS_License'] == 'no' %}selected{% endif %}>No</option>
+                    <option value="Yes" {% if common_data['MEIS_License'] != 'no' and common_data['MEIS_License'] %}selected{% endif %}>Yes</option>
+                </select>
+            </div>
+            <div class="col-md-4" id="meis_license_field" style="display: none;">
+                <label class="form-label">MEIS License #</label>
+                <input type="text" class="form-control form-control-sm" name="MEIS_License"
+                       value="{{ common_data['MEIS_License'] if common_data['MEIS_License'] != 'no' else '' }}">
+            </div>
+        </div>
+
+        <!-- Item Table -->
+        <!-- [no changes made here — same as before] -->
+
+        <!-- Item Table -->
+        <h5 class="mt-4">Item-wise Details</h5>
+        <div class="table-responsive bg-light p-2 rounded mb-3">
+            <table class="table table-sm table-bordered align-middle">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Artno</th>
+                        <th>Specification</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>Unit</th>
+                        <th>Rate (€)</th>
+                        <th>Duty %</th>
+                        <th>SW %</th>
+                        <th>IGST %</th>
+                        <th>GWO</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in item_rows %}
+                    <tr id="row_{{ loop.index0 }}">
+                        <td><input type="text" name="Artno_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.Artno }}" required></td>
+                        <td><input type="text" name="Specification_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.Specification }}" required></td>
+                        <td>
+                            <select name="Type_of_Product_{{ loop.index0 }}" class="form-select form-select-sm" onchange="toggleCustomType(this, {{ loop.index0 }})" required>
+                                {% set options = ['Raw material', 'Consumable', 'Repair and Maintenance', 'Fixed Asset', 'Printing and Stationary', 'Software', 'Custom'] %}
+                                {% for option in options %}
+                                <option value="{{ option }}" {% if item.Type_of_Product == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" name="Type_of_Product_custom_{{ loop.index0 }}" class="form-control form-control-sm mt-1"
+                                   value="{% if item.Type_of_Product not in options %}{{ item.Type_of_Product }}{% endif %}"
+                                   style="{% if item.Type_of_Product not in options %}display:block;{% else %}display:none;{% endif %}">
+                        </td>
+                        <td><input type="number" step="0.01" name="Quantity_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ '%.2f'|format(item.Quantity|float) }}" required></td>
+                        <td><input type="text" name="qty_type_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.Qty_type or '' }}" required></td>
+                        <td><input type="number" step="0.01" name="Rate_in_Euro_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.Rate_in_Euro }}" required></td>
+                        <td><input type="number" step="0.01" name="Duty_percentage_item_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.Duty_percentage_item }}"></td>
+                        <td><input type="number" step="0.01" name="SW_srchrg_percent_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.SW_srchrg_percent }}"></td>
+                        <td><input type="number" step="0.01" name="IGST_percentage_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.IGST_percentage }}"></td>
+                        <td><input type="text" name="GWO_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ item.GWO }}"></td>
+                        <input type="hidden" name="S_no_{{ loop.index0 }}" value="{{ item.S_no }}">
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmAndDeleteItem({{ item.S_no }})">🗑</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <input type="hidden" id="deleted_items" name="deleted_items[]">
+        </div>
+        <input type="hidden" name="item_count" value="{{ item_rows|length }}">
+
+        <!-- Add New Item Section (unchanged) -->
+
+        <!-- Bottom Buttons -->
+        <div class="d-flex justify-content-between mt-3">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNewItem()">+ Add Item</button>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success btn-sm">💾 Save Changes</button>
+                <a href="{{ url_for('search') }}" class="btn btn-secondary btn-sm">Cancel</a>
+            </div>
+        </div>
+    </form>
+
+<script>
+function toggleMeisField(val) {
+    const meisField = document.getElementById('meis_license_field');
+    const meisInput = document.querySelector('[name=MEIS_License]');
+    if (val === 'Yes') {
+        meisField.style.display = 'block';
+        meisInput.required = true;
+    } else {
+        meisField.style.display = 'none';
+        meisInput.required = false;
+        meisInput.value = '';
+    }
+}
+function toggleCustomType(selectEl, index) {
+    let input = (index === 'new') ?
+        document.getElementsByName("new_Type_of_Product_custom")[0] :
+        document.getElementsByName("Type_of_Product_custom_" + index)[0];
+
+    if (selectEl.value === "Custom") {
+        input.style.display = "block";
+        input.required = true;
+    } else {
+        input.style.display = "none";
+        input.required = false;
+        input.value = "";
+    }
+}
+function toggleCustomCurrencyEdit(select) {
+    const customInput = document.getElementById('custom_currency_edit');
+    if (select.value === 'Custom') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+function confirmAndDeleteItem(s_no) {
+    if (confirm("Are you sure you want to permanently delete this item?")) {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "/delete_item";
+        form.style.display = "none";
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "S_no";
+        input.value = s_no;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+function addNewItem() {
+    document.getElementById('new-item-section').style.display = 'block';
+}
+function removeNewItem() {
+    document.getElementById('new-item-section').style.display = 'none';
+    document.querySelectorAll('#new-item-section input').forEach(input => input.value = '');
+}
+window.onload = function () {
+    toggleMeisField(document.getElementById('meis_license_use').value);
+};
+</script>
+</body>
+</html>

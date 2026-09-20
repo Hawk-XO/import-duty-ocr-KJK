@@ -1,0 +1,9 @@
+flask
+mysql-connector-python
+python-doctr[torch]
+pdf2image
+opencv-python
+numpy
+pandas
+openpyxl
+weasyprint

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A3 landscape;
+      margin: 8mm;
+    }
+
+    body {
+      font-family: sans-serif;
+      font-size: 9pt;
+      margin: 0;
+      padding: 10px;
+    }
+
+    .header {
+      margin-bottom: 14px;
+    }
+
+    .common-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-bottom: 20px;
+    }
+
+    .common-table td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .import-summary {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-bottom: 20px;
+    }
+
+    .import-summary td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: middle;
+      font-weight: bold;
+    }
+
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 9pt;
+      page-break-inside: auto;
+    }
+
+    .invoice-table thead {
+      display: table-header-group;
+    }
+
+    .invoice-table tbody {
+      display: table-row-group;
+    }
+
+    .invoice-table th,
+    .invoice-table td {
+      border: 1px solid #000;
+      padding: 5px 5px;
+      word-wrap: break-word;
+      white-space: normal;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .invoice-table th {
+      background-color: #e2e2e2;
+    }
+
+    .invoice-table th.spec,
+    .invoice-table td.spec {
+      width: 20%;
+    }
+
+    .invoice-table th.sno,
+    .invoice-table td.sno {
+      width: 3%;
+    }
+
+    .invoice-table th.gwo,
+    .invoice-table td.gwo {
+      width: 3%;
+    }
+
+    .invoice-table th.default,
+    .invoice-table td.default {
+      width: 5%;
+    }
+
+    .invoice-table tbody tr {
+      page-break-inside: avoid;
+    }
+
+    .totals-row {
+      background-color: #e2e2e2;
+      font-weight: bold;
+      page-break-inside: avoid;
+    }
+
+    .table-title {
+      font-weight: bold;
+      font-size: 10pt;
+      margin: 10px 0 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2 class="header">Customs Duty Calculation (Summary) - Invoice no: {{ searched }}</h2>
+
+  <!-- Common Invoice Details Table -->
+  <table class="common-table">
+    <tr>
+      <td><strong>Invoice No:</strong> {{ common_data.Invoice_no }}</td>
+      <td><strong>Invoice Date:</strong> {{ common_data.Invoice_date }}</td>
+      <td><strong>Party:</strong> {{ common_data.PARTY_NAME }}</td>
+    </tr>
+    <tr>
+      <td><strong>AWB No:</strong> {{ common_data.AWB_no }}</td>
+      <td><strong>AWB Date:</strong> {{ common_data.AWB_date }}</td>
+      <td><strong>BOE No:</strong> {{ common_data.BOE_no }}</td>
+    </tr>
+    <tr>
+      <td><strong>BOE Date:</strong> {{ common_data.BOE_date }}</td>
+      <td><strong>Material Received Date:</strong> {{ common_data.Material_Recieved_Date }}</td>
+      <td></td>
+    </tr>
+  </table>
+
+  <div class="table-title">Final:</div>
+
+  <!-- One-Line Import Duty Summary Table -->
+  <table class="import-summary">
+    <tr>
+      <td style="background-color: #e2e2e2;">BCD</td>
+      <td>{{ "%.2f"|format(totals['Customs_Duty'] or 0) }}</td>
+      <td style="background-color: #e2e2e2;">SWS</td>
+      <td>{{ "%.2f"|format(totals['SW_srchrg_Value'] or 0) }}</td>
+      <td style="background-color: #e2e2e2;">IGST</td>
+      <td>{{ "%.2f"|format(totals['IGST_Value'] or 0) }}</td>
+      <td style="background-color: #e2e2e2;">Total Import Duty</td>
+      <td>
+        {{
+          "%.2f"|format(
+            (totals['Customs_Duty'] or 0)|float +
+            (totals['SW_srchrg_Value'] or 0)|float +
+            (totals['IGST_Value'] or 0)|float
+          )
+        }}
+      </td>
+    </tr>
+  </table>
+
+  <div class="table-title">Working:</div>
+
+  <!-- Summary Item-wise Table -->
+  <table class="invoice-table">
+    <thead>
+      <tr>
+        <th class="sno">S.No</th>
+        <th class="gwo">GWO</th>
+        <th class="default">Art No</th>
+        <th class="spec">Description</th>
+        <th class="default">Product Type</th>
+        <th class="default">Qty</th>
+        <th class="default">Unit</th>
+        <th class="default">Ex. Rate</th>
+        <th class="default">GRN Cost (INR)</th>
+        <th class="default">BCD</th>
+        <th class="default">SWS</th>
+        <th class="default">Total Duty</th>
+        <th class="default">Inward Cost with Duty</th>
+        <th class="default">IGST</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for row in item_rows %}
+        <tr>
+          <td class="sno">{{ loop.index }}</td>
+          <td class="gwo">{{ row['GWO'] }}</td>
+          <td class="default">{{ row['Artno'] }}</td>
+          <td class="spec">{{ row['Specification'] }}</td>
+          <td class="default">{{ row['Type_of_Product'] }}</td>
+          <td class="default">{{ row['Quantity'] }}</td>
+          <td class="default">{{ row['Qty_type'] }}</td>
+          <td class="default">{{ row['Currency_Exchange_Rate'] }}</td>
+          <td class="default">{{ row['Materialcost_GRN'] }}</td>
+          <td class="default">{{ row['Customs_Duty'] }}</td>
+          <td class="default">{{ row['SW_srchrg_Value'] }}</td>
+          <td class="default">{{ row['Total_Duty'] }}</td>
+          <td class="default">{{ row['Inward_Total_Value_w_IGST'] }}</td>
+          <td class="default">{{ row['IGST_Value'] }}</td>
+        </tr>
+      {% endfor %}
+
+      {% if totals %}
+        <tr class="totals-row">
+          <td colspan="5" style="text-align: center;">Total</td>
+          <td class="default">{{ totals['Quantity'] or '' }}</td>
+          <td class="default">{{ totals['Qty_type'] or '' }}</td>
+          <td class="default">{{ totals['Currency_Exchange_Rate'] or '' }}</td>
+          <td class="default">{{ totals['Materialcost_GRN'] or '' }}</td>
+          <td class="default">{{ totals['Customs_Duty'] or '' }}</td>
+          <td class="default">{{ totals['SW_srchrg_Value'] or '' }}</td>
+          <td class="default">{{ totals['Total_Duty'] or '' }}</td>
+          <td class="default">{{ totals['Inward_Total_Value_w_IGST'] or '' }}</td>
+          <td class="default">{{ totals['IGST_Value'] or '' }}</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Invoice</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        th {
+            white-space: normal !important;
+            word-wrap: break-word;
+            max-width: 150px;
+            font-size: 0.9rem;
+        }
+        td {
+            font-size: 0.9rem;
+        }
+        .card-header {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+        .label {
+            font-weight: 600;
+        }
+        .fixed-top-right-start {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1050;
+            font-size: 1.8rem;
+            padding: 10px 20px;
+            border-radius: 0 0 0 6px;
+        }
+        .import-summary {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+            margin-bottom: 20px;
+        }
+        .import-summary td {
+            border: 1px solid #000;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: middle;
+            font-weight: bold;
+        }
+        /* Increase font size ONLY for common invoice details */
+        .table-big table td,
+        .table-big table th {
+            font-size: 1.25rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <div class="text-end mb-4">
+        <a href="/start" class="btn btn-outline-secondary" style="font-size: 1.8rem; padding: 12px 28px;">
+            HOME
+        </a>
+    </div>
+
+    <h2 class="mb-4">Search Invoice</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Search Form -->
+    <form method="POST" action="/search" class="row g-3 mb-2">
+        <div class="col-auto">
+            <input type="text" name="invoice_no" class="form-control" placeholder="Invoice No" required value="{{ searched or '' }}">
+        </div>
+        <div class="col-auto">
+            <select name="view_mode" class="form-select">
+                <option value="full" {% if view_mode != 'summary' %}selected{% endif %}>Full View</option>
+                <option value="summary" {% if view_mode == 'summary' %}selected{% endif %}>Summary View</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <button type="submit" name="action" value="search" class="btn btn-primary">Search</button>
+        </div>
+        <div class="col-auto">
+            <button type="submit" name="export_xlsx" value="1" class="btn btn-success">Export XLSX</button>
+        </div>
+    </form>
+
+    {% if searched and not item_rows %}
+    <div class="alert alert-warning" role="alert">
+        No results found for invoice number: <strong>{{ searched }}</strong>
+    </div>
+    {% endif %}
+
+    {% if common_data %}
+    <div class="card mb-4">
+        <div class="card-header">Common Invoice Details</div>
+        <div class="card-body">
+            <div class="table-big">
+                <div class="row">
+                    {% set field_labels = {
+                        'Invoice_no': 'Invoice No',
+                        'Invoice_date': 'Invoice Date',
+                        'GRN_no': 'GRN No',
+                        'Material_Recieved_Date': 'GRN Date',
+                        'BOE_no': 'BOE No',
+                        'BOE_date': 'BOE Date',
+                        'AWB_no': 'AWB No',
+                        'AWB_date': 'AWB Date',
+                        'PARTY_NAME': 'Party',
+                        'Invoice_currency': 'Currency',
+                        'BOE_frieght_charges': 'BOE Freight',
+                        'Freight_Charges': 'Freight Charges',
+                        'Freight_Exchange_Rate': 'Freight Ex. Rate',
+                        'BOE_insurance_charges': 'BOE Insurance',
+                        'BOE_insurance_percentage': 'BOE Insurance %',
+                        'MEIS_License': 'MEIS License',
+                        'Grade': 'Grade'
+                    } %}
+                    {% set fields = field_labels.keys()|list %}
+                    {% set half = (fields|length // 2) + (fields|length % 2) %}
+                    <div class="col-md-6">
+                        <table class="table table-sm table-bordered">
+                            <tbody>
+                            {% for key in fields[:half] %}
+                                <tr>
+                                    <th class="bg-light">{{ field_labels[key] }}</th>
+                                    <td>{{ common_data.get(key, '') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm table-bordered">
+                            <tbody>
+                            {% for key in fields[half:] %}
+                                <tr>
+                                    <th class="bg-light">{{ field_labels[key] }}</th>
+                                    <td>{{ common_data.get(key, '') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div> <!-- end table-big -->
+        </div>
+    </div>
+    {% endif %}
+
+
+
+    <div class="mb-3 text-end download-btns">
+        <form method="POST" action="{{ url_for('delete_invoice') }}" onsubmit="return confirm('Are you sure you want to permanently delete invoice {{ searched }}?');" style="display:inline;">
+            <input type="hidden" name="invoice_no" value="{{ searched }}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete Invoice</button>
+        </form>
+
+        <form method="POST" action="/search" class="d-inline">
+            <input type="hidden" name="invoice_no" value="{{ searched }}">
+            <input type="hidden" name="view_mode" value="{{ view_mode }}">
+            <button type="submit" name="export_pdf" value="1" class="btn btn-outline-success">⬇ Download PDF</button>
+            <a href="/edit/{{ searched }}" class="btn btn-warning">✏️ Edit Invoice</a>
+        </form>
+    </div>
+
+    {% if item_rows %}
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm table-hover align-middle text-center w-100" style="table-layout: auto;">
+            <thead class="table-light">
+                <tr>
+                    <th>S.No</th>
+                    {% for col in item_columns %}
+                        {% set col_mapping = {
+                            'Specification': 'Description',
+                            'Quantity':'Qty',
+                            'Qty_type': 'Unit',
+                            'Rate_in_Euro': 'Per Rate',
+                            'Material_Cost': 'Value',
+                            'Rate_in_Inr': 'Per Rate (INR)',
+                            'Materialcost_GRN': 'GRN Cost (INR)',
+                            'Duty_percentage_item': 'Duty %',
+                            'SW_srchrg_percent': 'SWS %',
+                            'SW_srchrg_Value': 'SWS',
+                            'Customs_Duty': 'BCD',
+                            'Total_Ass_n_CD': 'Total Ass. Value',
+                            'IGST_percentage': 'IGST %',
+                            'IGST_Value': 'IGST',
+                            'Total_Ass_Value': 'Duty Ass. Value',
+                            'Inward_Total_Value_w_IGST': 'Inward Cost with Duty',
+                            'Currency_Exchange_Rate': 'Ex. Rate',
+                            'Type_of_Product': 'Product Type'
+                        } %}
+                        <th>{{ col_mapping.get(col, col.replace('_', ' ').replace("percent", "%").replace("percentage", "%")) }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in item_rows %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    {% for col in item_columns %}
+                        <td>
+                            {% if col == 'Quantity' %}
+                                {{ "%.2f"|format(row[col]|float) }}
+                            {% else %}
+                                {{ row[col] }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+
+                {% if totals %}
+                <tr class="table-secondary fw-bold">
+                    <td colspan="5" class="text-center">Total</td>
+                    {% for col in item_columns[4:] %}
+                        <td>{{ totals[col] if totals[col] else '' }}</td>
+                    {% endfor %}
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Import Duty Summary -->
+        <h6 class="fw-bold mt-4">Import Duty</h6>
+        <table class="import-summary">
+            <tr>
+                <td style="background-color: #e2e2e2;">BCD</td>
+                <td>{{ "%.2f"|format(totals['Customs_Duty'] or 0) }}</td>
+                <td style="background-color: #e2e2e2;">SWS</td>
+                <td>{{ "%.2f"|format(totals['SW_srchrg_Value'] or 0) }}</td>
+                <td style="background-color: #e2e2e2;">IGST</td>
+                <td>{{ "%.2f"|format(totals['IGST_Value'] or 0) }}</td>
+                <td style="background-color: #e2e2e2;">Total Import Duty</td>
+                <td>
+                    {{
+                        "%.2f"|format(
+                            (totals['Customs_Duty'] or 0)|float +
+                            (totals['SW_srchrg_Value'] or 0)|float +
+                            (totals['IGST_Value'] or 0)|float
+                        )
+                    }}
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+<script>
+function downloadPDF() {
+    const printable = document.querySelector('.container');
+    const opt = {
+        margin: 0.2,
+        filename: 'Invoice_{{ searched }}.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+    };
+    html2pdf().set(opt).from(printable).save();
+}
+</script>
+</body>
+</html>
